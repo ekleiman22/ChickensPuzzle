@@ -1,0 +1,475 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chickens in the garden</title>
+    <link rel="icon" type="image/x-icon" href="favicon.jpg">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* 100% viewport height */
+        }
+
+        #upper-panel {
+            flex: 0 0 3%; /* 5% height, do not grow or shrink */
+        }
+
+        #bottom-panel {
+            flex: 1; /* Take remaining height */
+            display: flex;
+            flex-direction: row;
+        }
+
+        .board {
+            display: grid;
+            grid-template-rows: repeat(5, 50px);
+            grid-template-columns: repeat(8, 50px);
+            gap: 1px;
+            width: max-content;
+            margin: 20px 50px 15px 300px;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .white {
+            background-color: #f0d9b5;
+        }
+
+        .black {
+            background-color: #b58863;
+        }
+        .center {
+            margin: auto;
+            width: 70%;
+            border: 3px solid green;
+            padding: 10px;
+        }
+        .text{
+            margin:10px 10px 2px 10px;
+            border:none
+        }
+    </style>
+</head>
+<body>
+    <div id="upper-panel">
+        <h3 id="gameName" style="text-align:center">Цыплята в огороде </h3>
+        <div class="center" id="divGameDesc">
+
+        </div>
+
+    </div>
+    <div id="bottom-panel">
+        <div class="board"></div>
+        <div id="divInfo" style="border: none; margin: 20px">
+            <div id="upper-right">
+                Language:<select id="cmbLang">
+                    <option value="1">Русский</option>
+                    <option value="2">English</option>
+                </select>
+            </div>
+            <label id="lblCurrentMove" for="txtCurrentNove:">Next Move:</label>
+            <input id="txtCurrentMove" class="text" type="text" value="👨"
+                   style="width:50px" readonly /><br />
+            <label id="lblMessage" for="txtMessage:">Message:</label>
+            <input id="txtMessage" type="text" class="text" value=""
+                   style="width:250px" readonly />
+            <h3>Options:</h3>
+            <fieldset>
+
+                <input id="radForAll" type="radio" name="radTurn"
+                       value="1" checked onclick="radTurnClick(this);" " />
+                <label id="lblForAll" for="radForAll:">Play for all</label>
+
+                <input id="radForChickens" type="radio" name="radTurn"
+                       value="2" onclick="radTurnClick(this)" />
+                <label id="lblForChickens" for="radForChickens:">Play for chickens</label>
+                
+
+            </fieldset> <br />
+            <input id="btnStart" type="button" value="Start moves"
+               style="display:none;"    onclick="moveFarmers()" />
+
+        </div>
+    </div>
+
+    <script src="manager.js"></script>
+    <script>
+        //const figures = ['👨', '👩', '🐓', '🐔'];
+        const figures = [{ name: 'man', index: 0, symbol: '👨' },
+        { name: 'woman', index: 1, symbol: '👩' },
+        { name: 'rooster', index: 2, symbol: '🐓' },
+        { name: 'hen', index: 3, symbol: '🐔' }
+        ]
+        const rusMessages = [' Фермер (👨) и его жена (👩) каждый ' +
+            'делают по одному ходу, затем петушок (🐓) и курочка (🐔) ' +
+            'тоже делают по одному ходу. Ход состоит в клике на фигуре и ' +
+            'в клике на соседнюю клетку в той же строке или столбце. ' +
+            'Игра продолжается, пока цыплята не будут ' +
+            'пойманы. Цыплёнок считается пойманным, когда фермер или его жена ' +
+            'переходят на клетку, на которой находится цыплёнок. Нужно поймать ' +
+            'цыплят за минимальное число ходов.',
+            'Следующий ход:',
+            'Неверный ход',
+            'Сообщение:',
+            'Игра закончена!',
+            'Цыплята в огороде',
+            'Курочка поймана!',
+            'Петушок пойман!',
+            'Играть за всех', //8
+            'Играть за цыплят против компьютера',//9
+            'Options' //10
+        ];
+        const engMessages = ['A farmer (👨) and his wife (👩) each ' +
+            'make one move at a time, then the cockerel (🐓) and the hen (🐔) ' +
+            'also make one move at a time. The move consists of clicking on the piece and ' +
+            'by clicking on an adjacent cell in the same row or column. ' +
+            'The game continues until all the chickens are caught. ' +
+            'A chicken is considered caught when the farmer or his wife ' +
+            'go to the cell on which the chicken is located. You need to catch the ' +
+            'chickens in the minimum number of moves.',
+            'Next move:', //1
+            'Wrong move', //2
+            'Message:', //3
+            'The game is finished!',//4
+            'Chickens in the garden',//5
+            'The hen is catched!', //6
+            'The cockerel is catched!', //7
+            'Play for everyone', //8
+            'Play as chickens against the computer ',//9
+            'Options' //10
+        ];
+        const farmersDelay = 2000;
+
+        /*selectedFigure is content of a cell when
+         * its innerHTML is not empty. That is when a click
+         * on nonempty cell is done its content is saved in
+         * selectedFigure and the cell is saved in selectedCell
+         * If a cell of current click is empty then
+         * its innerHtml will be done equal to selectedFigure
+         * and then selectedFigure will be cleared (null)
+         * and selectedCell will be defined as the cell
+         */
+        let messages = rusMessages;
+        let selectedFigure = null;
+        let selectedCell = null;
+
+        let currentFigureIndex = 0;
+        let roosterCatched = false;
+        let henCatched = false;
+
+        let manCell = null;
+        let womanCell = null;
+        let roosterCell = null;
+        let henCell = null;
+        let cellsarr = new Array(5); //5 rows
+
+        let gameType = 1; //1 - play for all, 2 - play for chicken
+        let gameStarted = false;
+
+        function gameFinished() {
+            return roosterCatched && henCatched;
+        }
+
+        function createBoard() {
+
+            const board = document.querySelector('.board');
+            let isWhite = false;
+            let figureIndex = 0;
+            for (let row = 0; row < 5; row++) {
+                cellsarr[row] = new Array(8);
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell', isWhite ? 'white' : 'black');
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.addEventListener('click', onCellClick);
+                    cellsarr[row][col] = cell;
+                    if (row === 2 && [0, 2, 5, 7].includes(col)) {
+                        switch (col) {
+                            case 0:
+                                cell.innerHTML = figures[2].symbol;
+                                roosterCell = cell;
+                                break;
+                            case 2:
+                                cell.innerHTML = figures[0].symbol;
+                                manCell = cell;
+                                break;
+                            case 5:
+                                cell.innerHTML = figures[1].symbol;
+                                womanCell= cell;
+                                break;
+                            case 7:
+                                cell.innerHTML = figures[3].symbol;
+                                henCell = cell;
+                                break;
+                        }
+                    }
+
+                    board.appendChild(cell);
+                    isWhite = !isWhite;
+                }
+                isWhite = !isWhite;
+            }
+        }
+
+        function onCellClick(event) {
+            if (gameFinished()) {
+                document.getElementById("txtCurrentMove").value = "";
+                return;
+            }
+
+            const cell = event.target;
+
+            if (selectedFigure) //if earlier a figure was selected
+            {
+                //firstly check if current cell is found
+                // on distance 1 from selected (previous clicked) cell
+                if (!checkDistance(cell, selectedCell))
+                    return;
+                if (cell.innerHTML === '') {
+                    cell.innerHTML = selectedFigure;
+                    selectedCell.innerHTML = '';
+                    selectedFigure = null;
+                    selectedCell = null;
+
+                    switch (currentFigureIndex) {
+                        case 0:
+                            manCell = cell;
+                            break;
+                        case 1:
+                            womanCell = cell;
+                            break;
+                        case 2:
+                            roosterCell = cell;
+                            break;
+                        case 3:
+                            henCell = cell;
+                            break;
+                    }
+                    advanceFigureIndex();
+
+                }
+                else {
+                    //in this situation there are figures
+                    //in cell and selectedCell
+                    if (checkCloseCells(selectedCell, cell))
+                        advanceFigureIndex();
+                }
+            }
+            else //no selected figure
+            {
+                if (cell.innerHTML !== '') //click on a figure
+                {
+                    if (!gameStarted)
+                        processGameStart();
+                    if (gameType == 2) {
+                        if (currentFigureIndex <= 1)
+                            return;
+                    }
+                    if (!checkFigure(cell)) {
+                        alert(messages[2]); //"Wrong figure"
+                        return;
+                    }
+                    defineFiguresCells(cell);
+                    if (cell != null) {
+                        selectedFigure = cell.innerHTML;
+                        selectedCell = cell;
+                    }
+                }
+            }
+        }
+
+        function advanceFigureIndex() {
+            if (henCatched && roosterCatched) {
+                document.getElementById("txtMessage").value =
+                    messages[4]; // "Game is finished!";
+                document.getElementById("txtCurrentMove").value = "";
+                return;
+            }
+            if (!henCatched && !roosterCatched) {
+                currentFigureIndex++;
+                currentFigureIndex = currentFigureIndex % 4;
+                document.getElementById("txtCurrentMove").value =
+                    figures[currentFigureIndex].symbol;
+                if ((currentFigureIndex == 0) && (gameType == 2))                    
+                    setTimeout(moveFarmers, farmersDelay);
+                return;
+            }
+            if (henCatched) {
+                switch (currentFigureIndex) {
+
+                    case 0: //man
+                        currentFigureIndex = 1; //woman
+                        break;
+                    case 1://woman
+                        currentFigureIndex = 2;//rooster
+                        break;
+                    case 2: //rooster
+                        currentFigureIndex = 1; //woman
+                        break;
+                    case 3: //hen
+                        currentFigureIndex = 1; //woman
+                        break;
+                }
+                if ((currentFigureIndex == 1) && (gameType == 2))
+                    setTimeout(moveFarmers, farmersDelay);
+            }
+            if (roosterCatched) {
+                switch (currentFigureIndex) {
+
+                    case 0://man
+                        currentFigureIndex = 3;//hen
+                        break;
+                    case 1://woman
+                        currentFigureIndex = 3;//hen
+                        break;
+                    case 3://hen
+                        currentFigureIndex = 0;//man
+                }
+                if ((currentFigureIndex == 0) && (gameType == 2))
+                    setTimeout(moveFarmers, farmersDelay);
+            }
+            document.getElementById("txtCurrentMove").value =
+                figures[currentFigureIndex].symbol;
+            
+            
+        }
+        function checkDistance(cellFrom, cellTo) {
+            let result = (dist(cellFrom, cellTo) == 1);
+            return result;
+        }
+        function checkCloseCells(cellFrom, cellTo) {
+            let catched = false;
+            if (cellFrom == manCell) {
+                if (cellTo != womanCell) {
+
+                    henCatched = true;
+                    document.getElementById("txtMessage").value =
+                        messages[6]; // "Hen Catched!";
+                    manCell = null;
+                    henCell = null;
+                    catched = true;
+                }
+            }
+            if (cellFrom == womanCell) {
+                roosterCatched = true;
+                document.getElementById("txtMessage").value =
+                    messages[7]; //"Rooster Catched!";
+                womanCell = null;
+                roosterCell = null;
+                catched = true;
+            }
+            if (catched) {
+                cellFrom.innerHTML = "";
+                cellTo.innerHTML = "";
+                selectedFigure = null;
+                selectedCell = null;
+            }
+            return catched;
+        }
+        /**
+         * This function is called when a click was done
+         * on non empty cell. The function checks
+         * that a figure of the cell is suitable
+         * for the sequence of steps.
+         * It should correspond to global variable
+         * currentFigureIndex that has values 0,1,2,3
+         *
+         */
+        function checkFigure(cell) {
+            let result = false;
+            let s = cell.innerHTML;
+            if (s == figures[currentFigureIndex].symbol) {
+                result = true;
+            }
+            return result;
+        }
+        function defineFiguresCells(cell) {
+            switch (currentFigureIndex) {
+                case 0:
+                    manCell = cell;
+                    break;
+                case 1:
+
+                    womanCell = cell;
+                    break;
+                case 2:
+                    roosterCell = cell;
+                    break;
+                case 3:
+                    henCell = cell;
+                    break;
+            }
+        }
+        function processGameStart() {
+            gameStarted = true;
+            radForAll.disabled = true;
+            radForChickens.disabled = true;
+            btnStart.disabled = true;
+        }
+        function checkHenCatch() {
+            let result = (dist(manCell, henCell) == 1);
+            return result;
+        }
+
+        function checkRoosterCatch() {
+            let result = (dist(womanCell, roosterCell) == 1);
+            return result;
+        }
+        function dist(a, b) {
+            let d = Math.abs(a.dataset.row - b.dataset.row) +
+                Math.abs(a.dataset.col - b.dataset.col);
+            return d;
+        }
+        function setMessagesByLanguage() {
+            let langId = parseInt(cmbLang.value);
+            if (langId == 1)
+                messages = rusMessages;
+            else
+                messages = engMessages;
+
+            document.getElementById("divGameDesc").innerHTML = messages[0];
+            document.getElementById("lblCurrentMove").innerHTML = messages[1];
+            document.getElementById("lblMessage").innerHTML = messages[3];
+            document.getElementById("gameName").innerHTML = messages[5];
+            document.getElementById("lblForAll").innerHTML = messages[8];
+            document.getElementById("lblForChickens").innerHTML = messages[9];
+            
+            let title_el = document.querySelector("title");
+            if (title_el)
+                title_el.innerHTML = messages[5];
+
+        }
+        function radTurnClick(myRadio) {
+            //alert(myRadio.value)
+            gameType = parseInt(myRadio.value);
+            switch (gameType) {
+                case 1:
+                    btnStart.style.display = "none";
+                    break;
+                case 2:
+                    btnStart.style.display = "block";
+                    break;
+                
+            }
+        }
+        cmbLang.addEventListener('change', () => {
+            setMessagesByLanguage();
+        });
+        setMessagesByLanguage();
+        createBoard();
+    </script>
+</body>
+</html>
